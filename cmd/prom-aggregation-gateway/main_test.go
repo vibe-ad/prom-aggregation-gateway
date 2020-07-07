@@ -67,7 +67,7 @@ histogram_count 1
 counter 60
 # HELP gauge A gauge
 # TYPE gauge gauge
-gauge 99
+gauge 57
 # HELP histogram A histogram
 # TYPE histogram histogram
 histogram_bucket{le="1"} 0
@@ -120,9 +120,9 @@ ui_external_lib_loaded{name="mixpanel",loaded="true"} 1
 `
 	gaugeOutput = `# HELP ui_external_lib_loaded A gauge with entries in un-sorted order
 # TYPE ui_external_lib_loaded gauge
-ui_external_lib_loaded{job="dev-project",loaded="true",name="Intercom"} 2
-ui_external_lib_loaded{job="dev-project",loaded="true",name="ga"} 2
-ui_external_lib_loaded{job="dev-project",loaded="true",name="mixpanel"} 2
+ui_external_lib_loaded{job="dev-project",loaded="true",name="Intercom"} 1
+ui_external_lib_loaded{job="dev-project",loaded="true",name="ga"} 1
+ui_external_lib_loaded{job="dev-project",loaded="true",name="mixpanel"} 1
 `
 	duplicateLabels = `
 # HELP ui_external_lib_loaded Test with duplicate values
