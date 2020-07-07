@@ -12,6 +12,7 @@ import (
 	"github.com/matttproud/golang_protobuf_extensions/pbutil"
 	"github.com/pmezard/go-difflib/difflib"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/route"
 )
 
 const (
@@ -119,9 +120,9 @@ ui_external_lib_loaded{name="mixpanel",loaded="true"} 1
 `
 	gaugeOutput = `# HELP ui_external_lib_loaded A gauge with entries in un-sorted order
 # TYPE ui_external_lib_loaded gauge
-ui_external_lib_loaded{loaded="true",name="Intercom"} 1
-ui_external_lib_loaded{loaded="true",name="ga"} 1
-ui_external_lib_loaded{loaded="true",name="mixpanel"} 1
+ui_external_lib_loaded{job="dev-project",loaded="true",name="Intercom"} 1
+ui_external_lib_loaded{job="dev-project",loaded="true",name="ga"} 1
+ui_external_lib_loaded{job="dev-project",loaded="true",name="mixpanel"} 1
 `
 	duplicateLabels = `
 # HELP ui_external_lib_loaded Test with duplicate values
@@ -179,7 +180,7 @@ func convertToProtobufFormat(t *testing.T, metrics string) io.Reader {
 	return buf
 }
 
-func createPushRequest(t *testing.T, metrics string, contentType string) *http.Request {
+func createPushRequest(t *testing.T, metrics string, contentType string, job string) *http.Request {
 	var data io.Reader
 	if contentType == contentTypeProtobuf {
 		data = convertToProtobufFormat(t, metrics)
@@ -191,34 +192,48 @@ func createPushRequest(t *testing.T, metrics string, contentType string) *http.R
 	}
 	req := httptest.NewRequest("POST", "http://example.com/bar", data)
 	req.Header.Set("Content-Type", contentType)
+
+
+	if job != "" {
+		params := map[string]string{
+			"job": job,
+		}
+
+		ctx := req.Context()
+		for p, v := range params {
+			ctx = route.WithParam(ctx, p, v)
+		}
+		req = req.WithContext(ctx)
+	}
 	return req
 }
 
 func TestAggate(t *testing.T) {
 	for _, c := range []struct {
+		job  string
 		a, b string
 		want string
 		err1 error
 		err2 error
 	}{
-		{gaugeInput, gaugeInput, gaugeOutput, nil, nil},
-		{in1, in2, want, nil, nil},
-		{multilabel1, multilabel2, multilabelResult, nil, nil},
-		{labelFields1, labelFields2, labelFieldResult, nil, nil},
-		{duplicateLabels, "", "", fmt.Errorf("%s", duplicateError), nil},
-		{reorderedLabels1, reorderedLabels2, reorderedLabelsResult, nil, nil},
-		{summaryInput, summaryInput, summaryDiscardedOutput, nil, nil},
+		{"dev-project", gaugeInput, gaugeInput, gaugeOutput, nil, nil},
+		{"", in1, in2, want, nil, nil},
+		{"", multilabel1, multilabel2, multilabelResult, nil, nil},
+		{"", labelFields1, labelFields2, labelFieldResult, nil, nil},
+		{"", duplicateLabels, "", "", fmt.Errorf("%s", duplicateError), nil},
+		{"", reorderedLabels1, reorderedLabels2, reorderedLabelsResult, nil, nil},
+		{"", summaryInput, summaryInput, summaryDiscardedOutput, nil, nil},
 	} {
 		for _, contentType := range []string{contentTypeText, contentTypeProtobuf} {
 			a := newAggate()
-			if err := a.parseAndMerge(createPushRequest(t, c.a, contentType)); err != nil {
+			if err := a.parseAndMerge(createPushRequest(t, c.a, contentType, c.job)); err != nil {
 				if c.err1 == nil {
 					t.Fatalf("Unexpected error: %s", err)
 				} else if c.err1.Error() != err.Error() {
 					t.Fatalf("Expected %s, got %s", c.err1, err)
 				}
 			}
-			if err := a.parseAndMerge(createPushRequest(t, c.b, contentType)); err != c.err2 {
+			if err := a.parseAndMerge(createPushRequest(t, c.b, contentType, c.job)); err != c.err2 {
 				t.Fatalf("Expected %s, got %s", c.err2, err)
 			}
 

@@ -14,6 +14,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/route"
 )
 
 func lablesLessThan(a, b []*dto.LabelPair) bool {
@@ -198,7 +199,9 @@ func (a *aggate) parseAndMerge(r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return a.merge(inFamilies)
+
+	job := route.Param(r.Context(), "job")
+	return a.merge(inFamilies, job)
 }
 
 func (a *aggate) parse(r *http.Request) (map[string]*dto.MetricFamily, error) {
@@ -228,7 +231,7 @@ func (a *aggate) parse(r *http.Request) (map[string]*dto.MetricFamily, error) {
 	return parser.TextToMetricFamilies(r.Body)
 }
 
-func (a *aggate) merge(inFamilies map[string]*dto.MetricFamily) error {
+func (a *aggate) merge(inFamilies map[string]*dto.MetricFamily, job string) error {
 	a.familiesLock.Lock()
 	defer a.familiesLock.Unlock()
 	for name, family := range inFamilies {
@@ -242,6 +245,11 @@ func (a *aggate) merge(inFamilies map[string]*dto.MetricFamily) error {
 
 		// Sort labels in case source sends them inconsistently
 		for _, m := range family.Metric {
+			if job != "" {
+				jobName := "job"
+				jobLabel := dto.LabelPair{Name: &jobName, Value: &job}
+				m.Label = append(m.Label, &jobLabel)
+			}
 			sort.Sort(byName(m.Label))
 		}
 
@@ -291,18 +299,22 @@ func (a *aggate) handler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	listen := flag.String("listen", ":80", "Address and port to listen on.")
 	cors := flag.String("cors", "*", "The 'Access-Control-Allow-Origin' value to be returned.")
-	pushPath := flag.String("push-path", "/metrics/", "HTTP path to accept pushed metrics.")
+	pushPath := flag.String("push-path", "/metrics/job/:job", "HTTP path to accept pushed metrics.")
 	flag.Parse()
 
 	a := newAggate()
-	http.HandleFunc("/metrics", a.handler)
-	http.HandleFunc(*pushPath, func(w http.ResponseWriter, r *http.Request) {
+
+	r := route.New()
+	r.Get("/metrics", a.handler)
+	pushHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", *cors)
 		if err := a.parseAndMerge(r); err != nil {
 			log.Println(err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-	})
-	log.Fatal(http.ListenAndServe(*listen, nil))
+	}
+	r.Post(*pushPath, pushHandler)
+	r.Put(*pushPath, pushHandler)
+	log.Fatal(http.ListenAndServe(*listen, r))
 }
