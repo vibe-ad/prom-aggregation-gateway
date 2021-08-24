@@ -1,3 +1,3 @@
-FROM alpine:3.10
+FROM alpine:3.14.1
 COPY prom-aggregation-gateway /
 ENTRYPOINT ["/prom-aggregation-gateway"]
