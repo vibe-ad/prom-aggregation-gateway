@@ -296,6 +296,12 @@ func (a *aggate) handler(w http.ResponseWriter, r *http.Request) {
 	// TODO reset gauges
 }
 
+func handleHealthCheck(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	io.WriteString(w, `{"alive": true}`)
+}
+
 func main() {
 	listen := flag.String("listen", ":80", "Address and port to listen on.")
 	cors := flag.String("cors", "*", "The 'Access-Control-Allow-Origin' value to be returned.")
@@ -306,6 +312,8 @@ func main() {
 
 	r := route.New()
 	r.Get("/metrics", a.handler)
+	r.Get("/-/ready", handleHealthCheck)
+	r.Get("/-/healthy", handleHealthCheck)
 	pushHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", *cors)
 		if err := a.parseAndMerge(r); err != nil {
