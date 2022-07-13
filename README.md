@@ -1,5 +1,26 @@
-# Prometheus Aggregation Gateway
+## Vibe specific documentation
+We currently use a home made version of the prom-aggregation-gateway.
+Currently the process is pretty manual and we may want to study an alternative or update this component.
+### Build the image
 
+Note that the ECR repository has been created using our Gitops workflow [here](https://github.com/vibe-ad/gitops/blob/main/crd-operators/mgmt-top-hermit/custom-resources/crossplane/ecr/prom-aggregation-gateway.yaml)
+
+Build the image
+```console
+cd cmd/prom-aggregation-gateway/
+docker build . -t 366938945728.dkr.ecr.us-east-1.amazonaws.com/prom-aggregation-gateway:$(git rev-parse --short HEAD)
+```
+
+
+Push it
+```console
+# Login to our AWS account
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 366938945728.dkr.ecr.us-east-1.amazonaws.com
+
+docker push 366938945728.dkr.ecr.us-east-1.amazonaws.com/prom-aggregation-gateway:$(git rev-parse --short HEAD)
+```
+
+# Prometheus Aggregation Gateway
 Prometheus Aggregation Gateway is a aggregating push gateway for Prometheus.  As opposed to the official [Prometheus Pushgateway](https://github.com/prometheus/pushgateway), this service aggregates the sample values it receives.
 
 * Counters where all labels match are added up.
